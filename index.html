@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manager Dashboard - Task Tracker</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',Tahoma,sans-serif;background:#f0f2f5;color:#2c3e50}
+.header{background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);color:#fff;padding:18px 30px;position:sticky;top:0;z-index:1000;box-shadow:0 4px 15px rgba(0,0,0,.3)}
+.header-row{max-width:1600px;margin:0 auto;display:flex;justify-content:space-between;align-items:center}
+.header h1{font-size:1.6em}
+.header-sub{opacity:.8;font-size:.85em;margin-top:4px}
+.nav-tabs{display:flex;gap:5px;background:#16213e;padding:5px 30px;border-bottom:2px solid #0f3460}
+.nav-tab{padding:10px 20px;color:#aaa;cursor:pointer;border-radius:5px 5px 0 0;transition:.3s;font-weight:600;font-size:.9em}
+.nav-tab:hover{color:#fff;background:rgba(255,255,255,.1)}
+.nav-tab.active{color:#fff;background:#0f3460;border-bottom:3px solid #e94560}
+.container{max-width:1600px;margin:0 auto;padding:20px}
+.page{display:none}.page.active{display:block}
+.filters{background:#fff;padding:15px 20px;border-radius:10px;margin-bottom:20px;box-shadow:0 2px 8px rgba(0,0,0,.08);display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+.fg{display:flex;flex-direction:column;min-width:150px}
+.fg label{font-weight:600;font-size:.8em;color:#667eea;margin-bottom:4px}
+.fg select,.fg input{padding:8px 10px;border:1.5px solid #ddd;border-radius:5px;font-size:.9em}
+.fg select:focus,.fg input:focus{outline:none;border-color:#667eea}
+.btn{padding:8px 18px;border:none;border-radius:5px;cursor:pointer;font-weight:600;font-size:.85em;transition:.2s}
+.btn-p{background:#667eea;color:#fff}.btn-p:hover{background:#5568d3}
+.btn-s{background:#95a5a6;color:#fff}.btn-s:hover{background:#7f8c8d}
+.btn-d{background:#e74c3c;color:#fff}.btn-d:hover{background:#c0392b}
+.btn-g{background:#2ecc71;color:#fff}.btn-g:hover{background:#27ae60}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:15px;margin-bottom:25px}
+.sc{background:#fff;padding:20px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.08);cursor:pointer;transition:.3s;border-left:4px solid #667eea}
+.sc:hover{transform:translateY(-3px);box-shadow:0 4px 15px rgba(0,0,0,.12)}
+.sc .num{font-size:2.2em;font-weight:bold;color:#1a1a2e}.sc .lbl{color:#7f8c8d;font-size:.9em;margin-top:3px}
+.sc.green{border-left-color:#2ecc71}.sc.orange{border-left-color:#f39c12}.sc.red{border-left-color:#e74c3c}.sc.purple{border-left-color:#9b59b6}.sc.blue{border-left-color:#3498db}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(450px,1fr));gap:20px;margin-bottom:25px}
+.card{background:#fff;padding:20px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.card h3{color:#1a1a2e;margin-bottom:15px;font-size:1.1em;display:flex;justify-content:space-between;align-items:center}
+table{width:100%;border-collapse:collapse}
+th{background:#1a1a2e;color:#fff;padding:10px 12px;text-align:left;font-size:.85em;position:sticky;top:0}
+td{padding:10px 12px;border-bottom:1px solid #ecf0f1;font-size:.85em}
+tr:hover{background:#f8f9fa}
+tr.clickable{cursor:pointer}
+.badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:.8em;font-weight:600}
+.b-done{background:#2ecc71;color:#fff}.b-prog{background:#f39c12;color:#fff}.b-hold{background:#e74c3c;color:#fff}.b-post{background:#95a5a6;color:#fff}
+.pbar{width:100%;height:6px;background:#ecf0f1;border-radius:3px;overflow:hidden;margin-top:4px}
+.pfill{height:100%;background:linear-gradient(90deg,#2ecc71,#27ae60);transition:width .3s}
+.modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.7);z-index:2000;overflow-y:auto}
+.modal-box{background:#fff;max-width:900px;margin:40px auto;padding:30px;border-radius:15px;position:relative}
+.modal-x{position:absolute;top:10px;right:15px;font-size:1.8em;cursor:pointer;color:#95a5a6}.modal-x:hover{color:#e74c3c}
+.search{width:100%;padding:10px 15px;border:2px solid #e0e0e0;border-radius:5px;font-size:.9em;margin-bottom:15px}
+.search:focus{outline:none;border-color:#667eea}
+.risk-high{background:#ffeaea!important}.risk-med{background:#fff8e1!important}
+.tag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:.75em;margin:2px;background:#e8eaf6;color:#3f51b5}
+.empty{text-align:center;padding:40px;color:#95a5a6;font-size:1.1em}
+@media(max-width:768px){.grid2{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}.filters{flex-direction:column}}
+</style>
+</head>
+<body>
+<div class="header">
+<div class="header-row">
+<div><h1>📊 Manager Dashboard - Task Tracker</h1><div class="header-sub">Generated: March 13, 2026 03:52 PM</div></div>
+</div>
+</div>
+<div class="nav-tabs">
+<div class="nav-tab active" onclick="showPage('overview')">📈 Overview</div>
+<div class="nav-tab" onclick="showPage('tasks')">📋 All Tasks</div>
+<div class="nav-tab" onclick="showPage('team')">👥 Team View</div>
+<div class="nav-tab" onclick="showPage('timeline')">📅 Timeline</div>
+<div class="nav-tab" onclick="showPage('risks')">⚠️ Risks</div>
+</div>
+<div class="container">
+<!-- Filters -->
+<div class="filters">
+<div class="fg"><label>Month</label><select id="fMonth"><option value="">All</option></select></div>
+<div class="fg"><label>Team</label><select id="fTeam"><option value="">All</option></select></div>
+<div class="fg"><label>Status</label><select id="fStatus"><option value="">All</option><option>Completed</option><option>In Progress</option><option>On Hold</option><option>Postponed</option></select></div>
+<div class="fg"><label>Sprint</label><select id="fSprint"><option value="">All</option></select></div>
+<div class="fg"><label>From</label><input type="date" id="fStart"></div>
+<div class="fg"><label>To</label><input type="date" id="fEnd"></div>
+<button class="btn btn-p" onclick="applyFilters()">Apply</button>
+<button class="btn btn-s" onclick="resetFilters()">Reset</button>
+<button class="btn btn-g" onclick="exportData()">📥 Export All</button>
+<button class="btn btn-p" onclick="exportNewTasks()" id="btnExportNew" style="display:none">📤 Export New Tasks</button>
+</div>
+
+<!-- Overview Page -->
+<div class="page active" id="overview">
+<div class="stats" id="statsGrid"></div>
+<div class="grid2">
+<div class="card"><h3>Status Distribution</h3><canvas id="statusChart"></canvas></div>
+<div class="card"><h3>Team Workload</h3><canvas id="teamChart"></canvas></div>
+<div class="card"><h3>Sprint Progress</h3><canvas id="sprintChart"></canvas></div>
+<div class="card"><h3>Monthly Trend</h3><canvas id="trendChart"></canvas></div>
+</div>
+</div>
+
+<!-- Tasks Page -->
+<div class="page" id="tasks">
+<div class="card">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px">
+<input type="text" class="search" id="taskSearch" placeholder="🔍 Search tasks..." onkeyup="searchTasks()" style="margin-bottom:0;flex:1;margin-right:12px">
+<button class="btn btn-g" onclick="openAddTask()" style="white-space:nowrap">➕ Add New Task</button>
+</div>
+<div style="overflow-x:auto"><table id="taskTable"></table></div>
+</div>
+</div>
+
+<!-- Team Page -->
+<div class="page" id="team">
+<div class="card"><h3>Team Performance</h3><div id="teamDetails"></div></div>
+</div>
+
+<!-- Timeline Page -->
+<div class="page" id="timeline">
+<div class="card"><h3>Task Timeline</h3><div id="timelineView"></div></div>
+</div>
+
+<!-- Risks Page -->
+<div class="page" id="risks">
+<div class="card"><h3>⚠️ Risk Dashboard</h3><div id="riskView"></div></div>
+</div>
+</div>
+
+<!-- Add Task Modal -->
+<div class="modal" id="addTaskModal">
+<div class="modal-box" style="max-width:700px">
+<span class="modal-x" onclick="closeAddTask()">&times;</span>
+<h2 style="color:#1a1a2e;margin-bottom:20px">➕ Add New Task</h2>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+<div class="fg"><label>Task Name *</label><input type="text" id="newTask" placeholder="Task name"></div>
+<div class="fg"><label>Responsible *</label><input type="text" id="newWho" placeholder="Team member name"></div>
+<div class="fg" style="grid-column:1/-1"><label>Description</label><textarea id="newDesc" rows="2" style="padding:8px 10px;border:1.5px solid #ddd;border-radius:5px;font-size:.9em;font-family:inherit;resize:vertical" placeholder="Detailed description"></textarea></div>
+<div class="fg"><label>Status</label><select id="newStatus"><option>In Progress</option><option>Completed</option><option>On Hold</option><option>Postponed</option></select></div>
+<div class="fg"><label>Sprint</label><input type="text" id="newSprint" placeholder="e.g. Sprint 5"></div>
+<div class="fg"><label>Assigned Date</label><input type="date" id="newAssigned"></div>
+<div class="fg"><label>Start Date</label><input type="date" id="newStart"></div>
+<div class="fg"><label>End Date</label><input type="date" id="newEnd"></div>
+<div class="fg"><label>Due Date</label><input type="date" id="newDue"></div>
+<div class="fg" style="grid-column:1/-1"><label>Links</label><input type="text" id="newLinks" placeholder="URL or reference"></div>
+<div class="fg" style="grid-column:1/-1"><label>Comments</label><textarea id="newComments" rows="2" style="padding:8px 10px;border:1.5px solid #ddd;border-radius:5px;font-size:.9em;font-family:inherit;resize:vertical" placeholder="Any comments or notes"></textarea></div>
+</div>
+<div style="margin-top:20px;display:flex;gap:10px;justify-content:flex-end">
+<button class="btn btn-s" onclick="closeAddTask()">Cancel</button>
+<button class="btn btn-g" onclick="saveNewTask()">✅ Save Task</button>
+</div>
+<div id="addTaskMsg" style="margin-top:10px;font-size:.85em"></div>
+</div>
+</div>
+
+<!-- Task Detail Modal -->
+<div class="modal" id="taskModal">
+<div class="modal-box">
+<span class="modal-x" onclick="closeModal()">&times;</span>
+<div id="taskDetail"></div>
+</div>
+</div>
+
+<script>
+const allTasks = [{"id": 0, "task": "Check the USA data definitions", "desc": "get the USA data definitions along with Table names information for GA4", "who": "Venkat", "status": "On Hold", "sprint": "Sprint 1", "assigned": "1/9/2025", "start": "1/9/2025", "end": "3/9/2025", "due": "nan", "links": "nan", "comments": "Items table access needed\non-hold due to restructure of GA4 data (Daniel)\nMeghana to follow-up with the POC"}, {"id": 1, "task": "Item level report", "desc": "Ecommerce data report for daily monitoring", "who": "Narayana", "status": "In Progress", "sprint": "Sprint 2", "assigned": "12/1/2026", "start": "22/01/2026", "end": "25/02/2026", "due": "nan", "links": "https://app.sigmacomputing.com/entain-group/workbook/All-Labels-Iteam-Level-Data-69Myn7cdCpSNBDiMcOrv39/edit?:nodeId=QWd-PB8yX_", "comments": "12th Jan: To setup a call with Oliver's team\n29th Jan : on 30 setup call with Oliver team regarding data validation\nfeb 4th : work on the sql need to validate with Oliver team on 5th \nFeb 11: i will validate the sql and data by 13th and provide the report by feb17th\nfeb19: today i am working on it\nFeb 25th: it is going to be done today\nMarch 9 : already done waiting to get feedack once i have feedback i will automate\nMarch 11 : already done waiting to get feedack once i have feedback i will automate , I will folloup today with Oliver team"}, {"id": 2, "task": "Browser Usage Report", "desc": "Create a new report with Browser usafe data for all the labels on product wise", "who": "Narayana", "status": "In Progress", "sprint": "Sprint 3", "assigned": "30/01/2026", "start": "16/02/2026", "end": "2/3/2026", "due": "nan", "links": "https://app.sigmacomputing.com/entain-group/workbook/Basic-Browser-Traffic-Report-3FUFfsQyueLM5YRUCMBO7z", "comments": "Feb 11: will start this by next week and update the dates accordingly\nfeb 19: we have call with alex and she has given some more requirments and given ETA 1 march\nMarch 9: do Alex is reviewing once i get feedback i will automate\nMarch 9: suggested changes will be completed by march 10\nMarch 11: suggested changes will be completed by march 11"}, {"id": 3, "task": "project Hershel DLR report", "desc": "provided data to Alex of project jershel status report", "who": "Narayana", "status": "Completed", "sprint": "Sprint 3", "assigned": "12/2/2026", "start": "12/2/2026", "end": "16/02/2026", "due": "nan", "links": "https://confluence.corp.entaingroup.com/pages/viewpage.action?pageId=337899122", "comments": "Feb18: completed Need to create confluence page\nFeb 19th:Conflunce need to update\nFeb 25th : waiting for chai review\nMarch 9 : on going staus report doe for this month"}, {"id": 4, "task": "Gaming data", "desc": "for the given Gameing data bhanu has given some more values to include", "who": "Narayana", "status": "In Progress", "sprint": "Sprint 3", "assigned": "12/2/2026", "start": "17/02/2026", "end": "2/3/2026", "due": "nan", "links": "https://app.sigmacomputing.com/entain-group/workbook/Daily-Behavioural-Events-Monitoring-Dashboard-sVrzjPkiMznRo3Fm2Sa2G/edit?:nodeId=U2VI7TlZHI", "comments": "Feb 19: need to work on automation and additional requirements\nMarch 9: done and got feedback need to work on it and automate the report\nMarch 11: updated with the new requirments once i hav feedback i will automate"}, {"id": 5, "task": "Sigma incident updates", "desc": "Need to update all the sigma KPIs incidents updates on every tuesday", "who": "Narayana, Meghana", "status": "In Progress", "sprint": "Sprint 1", "assigned": "14/10/2025", "start": "14/10/2025", "end": "nan", "due": "nan", "links": "nan", "comments": "Please update the INC start dates with issue start date. If the issue start date is from Jan, then don't make any changes, however, going forward for any INC, we need to add the issut start date\nAlso add stakeholder friendly comms every friday, gather this information from the leads\nDependency with sigma team \nMeghana needs to check with Narayana\nNarayana to follow up on teams by 08/12/2025\n10Dec: Narayana to followup today\nAnother followup update on dec 17th\n4 feb: Updated this week comments\n11 feb : today we will update and send notification to team\nFeb 19th: runs every tuesday\nFeb 25th: recheck the updates and follow up with team\nMarch 9: on going process will update by tomorrow\nMarch 11: updated and folloup with team"}, {"id": 6, "task": "INC2179569 FTD and deposit API big decline after single domain migration", "desc": "INC2179569 FTD and deposit API big decline after single domain migration", "who": "Naveen", "status": "In Progress", "sprint": "Sprint 1", "assigned": "15/07/2025", "start": "15/07/2025", "end": "18/7/2025", "due": "nan", "links": "nan", "comments": "Did sample deposit and FTD 17 & 18th July. Out of 10 transaction only 2 have API events.\nTesting is ongoing with Raju and we still see sometimes few api events are not reported. next check July 30,2025\nLower environment is down coral and ladbrokes. for sportingbet br testing is completed as on 31/07\nftd_success_api event is not fired because lower environment database has to be updated. Create new credentials and inform them to update the backend data base to see ftd_api event. this has to be completed on or before 5th august\nBetMGM QA is stilpenigns as the code isn;t deploed there and ETA on this 05th/08/25\nbecause of proxy error we are missing few api events and Raju is manually push these events one more time and see if those are going to be successful, if yes, then this needs be again code change for all ther error events needs be released after 3-5 seconds after a failure\nCoral and Ladbrokes went live on 12th August and for ROW not yet. pproxy error still exist- so far data is reporting as expected\nAll labels released on 18th August. validation is pending\nSpeak with bala on client ID issue - 28/08\nVanila implemented the chanegs and data improved, however, we are still missing the clietn ID values\nProxy server email under triage.. lets followup on november 03rd\nFollowup with ganesh iyer - followup on november 03rd\npayments team made the fix and wt team chedked its working fine in aws evn\nabhishhek need to followup on brazil related \n20th November it may go live\nProxy server implementation is picked up on 12th november sprint\nClient ID code change is going live today\n\nCall scheduled for Dec 01\nMissing of some data for some labels is due to apple pay payment method issue team is working on it to fix they are aiming to fix this in lower Evns\nFor proxy errors santosh team published a change into prod on Dec 4th but that didnt worked we asked them to revert back the changes to normal inorder to loss the data\n\n10Dec: Avinash team to provide details after the applied fixes. nAveen to vlaidate\nCheck wth raju on missing api event for provided txn id\nproxy server issue fix was enabled in all prod labels. Shared update in the group on 22/12\nAnd raju yet confimr the issue which is casuing from applepay \nJan5th follow up done. setup a call with Swamy to discussion about apple pay payment method\njan7th - Call shceduled on jan 8th and shared the PP data by payment method \n12 Jan - Abhishek to follow up\n19th Jan - Abhishek to folow up on INC checks\nJan 28: Abhishek to followup with Srinivasulu bendi on this to get this prioritised\nfeb 4th: Call has been shceduled on feb 5th with poker team to discuss the issue the user and session breaking for android and For ios - rollout of Embedded Web Casino (EWC) on WKWebView, which is currently under testing by Casino QA\nFeb 5th: Call has been rescheduled to feb 9th \nfeb 9th : Call was scheduled to discuss the issue observed in the PP lable in android code version\nFeb 11: With help of poker team we identified that in The Android wrapper, clears cache and cookies every time a new page is loaded we have asked team to check is in QA Evn we are yet to get an update here\nFeb 12th:Follow up done for update\nFeb 16th: Follow up need to do - done no reply\nFeb 18th: Follow up need to do\nFeb 19th:Follow up done but no reply\nFeb 23rd: Call shceduled for Feb 24th\nFeb 25th:Call need to reschedule for next week on march 2nd\nMar 2nd: Call has been scheduled for today\nMar 5th: Need to discuss with chai \nmarch 9th : shceduled call with cashier and poker team\nMarch 11th:shceduled call with internal team discussion\nMarch 12th: After discussing internally we are closing this inc as majority of data issue in the partypoker is from ios where poker team was working on architectural changes"}, {"id": 7, "task": "INC2058966", "desc": "REOPENED-P16-INC2058966-GA4 ftd_success And ftd_success _api Data Not Reported For pr.betmgm.com", "who": "Naveen", "status": "On Hold", "sprint": "Sprint 1", "assigned": "nan", "start": "nan", "end": "nan", "due": "nan", "links": "nan", "comments": "For PR Betmgm ftd_success_api events are not reported\nfollowed up on 7th Aug -It will be in the 3rd week of Sept....depends on Multiple dependent teams and also based on approvals as NFL is starting in Sept\nwe need to wait till September 2nd half post which we can validate\nFollowup on october 10th\nFollow up done on oct 13th waiting \nmoving their code changes to PR Production they were blocked because PR state is out of sync from last few month\nhence ifthey have to deploy changes depenedent(core, compliance, wallet etc) teams should also deploy their changes\nwithout that we can't proceed to fix this issue\nGCC is checking on the spefic team to add in that channel\nFollowup on 17th October\nFollowed on 21st October\nfollowup on 28th October-done\nNaveen to discuss with Alex and take next steps to escalate\nfollowed on nov 12th\nFollowed up with Alex - waiting for next steps\nit is with perry and rohit \nFollowed up on 22/12/2025\nJan 5th update: GCC followeup with perry and rohit , waiting for the update\nJan 12th: Follow up with GCC on 19h Jan\nJan 28th: Its with perry now , he needs to discuss with Rohit dewan and complete"}, {"id": 8, "task": "P16-INC2201114", "desc": "GA4 Registration Success API numbers are dropped compared to Transactional data base", "who": "Naveen", "status": "In Progress", "sprint": "Sprint 1", "assigned": "12/8/2025", "start": "nan", "end": "nan", "due": "nan", "links": "PJO-26099", "comments": "Naveen has to share the details\nShared the details to Dev and followup on 20th Aug\nFollow up on Aug 26th- no updates\nFollowup on 29/08- enabled the logs in sportingbet.de ,bpremium.de, betboo.bet.br.we need to check the new registred users data and send them\nProvide new data on september 05th with new IDs\nFollowup on the INC 08th Sept No update yet\nLadbrokes and Betboo data needs to be shared on Sept_12th\nFollowup on the INC on 22nd\nCheck with Chai for follow up on enabling logs then send follow up as needed\nNaveen followed up on Oct 6th, yet to get any reply\nfollowed up on Oct 8th, yet to get any reply\nfollowed up on oct 13th,yet to get any reply\nFor logs enabling they will pickup in next sprint starting from oct 15th but for timeout errors we havent recieved any update\nFollowed on 21st October no reply\nlogs are enabled WT team need to send data on nov 3rd we are waiting for portal team inputs on the data which we shared follow up on nov 5th\nInvestigation is in progress, user journey is being analyzed\nfollowed on nov 12th\nCheck with the compliance dev on who can they resolve the thirparty timeout errors\nFollowup tomorrow 27th nov\nDec 01: Waiting on Alex for further steps\ncall was schduled on 3rd dec\nCall scheduled for 08/12/2025 \n12Dec call scheduled\nCall is rescheduled to 15th Dec-compliance team not joined\nAbhishek followed up on 22/12\njan 5th Follow up done for both teams comliance and portal for respective actions- Requested Suri team to check for errors and post which update the INC \nJan 7th - update the inc with the result and shcedule a call with pradnya/parul team\n12th Jan: Abhishek to follow up\n19th Jan: Vignesh has to follow up\n28th Jan: call scheduled today with dev teams\n29th Jan: Siva Kumar team is going to check the feasibility on registration sucess_api hitting the ga4 servers from the backend its soing to be picked up in the next sprint check the next sprint date with Pradnya or siva\nfeb 4th: follow up on the status of picking this request with pradnya on feb 5th\nFeb 5th: its picked up in the current sprint\nfeb 9th: It was picked in the sprint 4 for checking feasable solution a jira ticket was given for tracking progress\nFeb 11th: We have followed up on feb 10th didnt get any update on otherside complaince team was not resporting anyone \nFeb 12th: Follow up done \nFeb 16th:Followup done \nFeb 18th : Dev is working on it and she shared cid with us we are cross checking the parameters passing in this event from backend and frontend event\nFeb 19th:We found some parameters are missing in the payload informed the dev ,she did fix for it in the late evng and shared the cid we need to validate the paramters again\nFeb 23rd: Dev is working on - when there is no consent given by user also we need to send this reg api\nFeb 25th: Dev shared the user id we need to compare the data \nFeb 26th: We checked the data reg api event was not reported informed same with dev\nMar 2nd : Dev is making changes ready to push into prod by this march 4th\nMar 5th: Prod changes live for gamebookers and partypoker com labels we are monitoring the data\nMarch 9th: the fix was which was implemented not showing the good improvements waiting for chai/hyma approval for applying same in other labels\nMarch 11th:Fix was not working as expected dev is working it\nMarch 12th:Unfortunately the changes was not deployed in prod ,due to code freez dev is waiting for deployment"}, {"id": 9, "task": "Cds alligenmnet in all the labels", "desc": "Need to have all the main cds in the all labels and document", "who": "Naveen", "status": "Completed", "sprint": "Sprint 1", "assigned": "19/09/2025", "start": "19/09/2025", "end": "30/01/2026", "due": "nan", "links": "https://coralracing-my.sharepoint.com/:x:/r/personal/naveen_marrapu1_entainindia_com/_layouts/15/Doc.aspx?sourcedoc=%7B181B7379-B6ED-46DA-96F4-E343EA6CFAFB%7D&file=CD%27s%20List.xlsx&action=default&mobileredirect=true", "comments": "Followed up with Chai, Chai to follow up with other leads to align on the CD changes\nChai to follow up with all the leads and confirm\nChai will check with team dec 11th\nFollow up Chai on 29/12\nJan 8 - follow up with Oliver on item scoped dimension\n12 jan: Follow up with oliver on 19th jan\n28 Jan: except US labels all are aligned now. Sai to confirm on the usa lavels and naeveen to ge tthe ETA on this\nfeb 4th : waiting for update from internal sports team approval from stakeholders for add/remove CDs in the US label\nFeb 9th: Follow up done for update\nFeb 11th: We have discussed with oliver on th changes in GA4 ui for US label he will be speaking with respective PMs and he will let us know\nFeb 12th: Will follow up for update on feb 16th\nFeb 16th:Followup done\nFeb 18th:We got approval to remove cds waiting for reply on adding cds from oliver\nFeb 19th : waiting for his reply for adding cds\nFeb 23rd: Oliver teeam need to add some parameters in the gtm then we will add those in GA4 UI for us labels \nMarch 5th: We are closing this task as us property if they want to add/remove cds they will add when ever they want"}, {"id": 10, "task": "Remove GTM referral exclusion list", "desc": "We need to remove this from GTM and add it at GA4 UI", "who": "Naveen", "status": "In Progress", "sprint": "Sprint 3", "assigned": "22/01/2026", "start": "22/01/2026", "end": "nan", "due": "nan", "links": "nan", "comments": "Jan 28: test the implementation in few labels and see ithe performance and make sure that GTM tag is excluded for these labels.\nFeb 02nd: configureed this for 4 labels, and monitor this data for one week and analyse and enable for multiple labels in phases wise:\nFeb 11th: testing is in progress for lcg\nFeb 12th:checked the user journey by going paypal to coral and elitedealfinder to coral respective referrals are reported GTM publish notification will be send today with this user data in the testing doc\nFeb 16th:Publsih notification send for review\nFeb 18th:We will be publishing this change today\nFeb 19th: GTM changes are published for LCG label we are monitoring the data \nFeb 23rd: Changes need to ready for GVC labels aswell by march 2nd\nfeb 25th : Working on gvc changes\nMar 2nd: We will try to publish this by march 4th\nMarch 9th: UAT is about to complete UI changes were completed\nMarch 11th: Making the publish notification ready\nmarch 12th : We will try to send publish notification today to get approvals currently it was shared with sai for review"}, {"id": 11, "task": "New change is happening in the cookie banner - Need monitor and test", "desc": "Targeting cookies was disbaled by default in all the regions similar like spain region once it went live we need to check the our tracking and our events firing or not correctly", "who": "Naveen", "status": "On Hold", "sprint": "Sprint 3", "assigned": "27/01/2026", "start": "27/01/2026", "end": "On going till Q3 2026", "due": "nan", "links": "ICO changes - France.xlsx", "comments": "Feb 9th : ico cal was shecudled for today we need to get the as many things we can get from this call\nFeb 11th:For france label planned deployment is on feb 18\nFeb 18th:As per plan they are going changes live today will check over traking if there is any break happend or not\nFeb 19th: Deployment has deloyed due to luke has some priority changes to be done, no eta yet\nMarch 2nd: They are going live today we do random checks from GA4 side\nMarch 5th: Changes went live all our cookie tags are working as expected"}, {"id": 12, "task": "INC2332682", "desc": "Data Discrepancy in deposit_success_api and ftd_success_api Events \u2014 GA4 vs DWH", "who": "Naveen", "status": "In Progress", "sprint": "Sprint 4", "assigned": "6/2/2026", "start": "6/2/2026", "end": "nan", "due": "nan", "links": "nan", "comments": "Feb 9th: As per comments some performance test has done on that days and we see some data gap issue in the DWH we are checking with them for this ETL pipeline\nFeb 10th: dwh team confimed that these are test users txn where dwh will not reported\nFeb 11th:Checking with cashier team why do we reported test users data in production property\nFeb 12th:We are currently checking with cashier team why these test user are coming in the production we have asked this question in slack channel and setuped a call to discuss this more\nFeb 16th:We will be creating jira ticket for cashier product team for implementation\nFeb 18th: We have got reply from santosh as he is mentioned it will be picked in the Q2 ,abhisheek was checking with alex on this Prioritization\nFeb 19th: Abhishek has involved Alex for prioritization, and we are currently waiting for her response\nFeb 23rd: meghana need to update code and check weather this also working for deposit api event aswell \nFeb 26th: As we shared jira ticket with cashier product can we close this inc ?\nMar 5th: Closed the Inc and waiting for santosh to prioritise this fix in q2\nMarch 9th : tentative eta to pick in this implementation in sprint 4\nmarch 11th: It was picked by the cahsier team tentative eta for this completion is this sprint"}, {"id": 13, "task": "GCLID fix", "desc": "in the gtm we need to fix the GCLID value currently captuing", "who": "Naveen", "status": "On Hold", "sprint": "Sprint 4", "assigned": "20/02/2026", "start": "20/02/2026", "end": "nan", "due": "nan", "links": "nan", "comments": "Feb 23rd:Publish notification is ready\nFeb 25th: Extra parameter dclid also we are added we done the testing waiting to send publish notification\nMarch 9th: Chai is checking wirh incubeta team"}, {"id": 14, "task": "Montecarlo Alerts And Big Function Alerts", "desc": "Need to monitor alerts and repond accordingly", "who": "Naveen, Meghana", "status": "In Progress", "sprint": "Sprint 1", "assigned": "6/8/2025", "start": "nan", "end": "nan", "due": "nan", "links": "nan", "comments": "Ongoing monitoring\nJan 8th - Narayana to setup call with internal team to confirm BQ alert changes"}, {"id": 15, "task": "game_launch_api,game_load_api lot of null values are reported", "desc": "co-ordinate with dev and create back fall to capture the session ID", "who": "Prateek", "status": "On Hold", "sprint": "Sprint 1", "assigned": "24/07/2025", "start": "13/10/2025", "end": "nan", "due": "nan", "links": "nan", "comments": "After vanila solution goes live we need to create and share with different teams\nRaise the request with prabjit to fix the session ID\nFollowup On October 27th,2025\ncommunicate to rajalaxmi about duplicate tickets and work on the newly created tickets\nFollowup next week on november 4th and check when they canpickup and prioritise\nShare all the tickets from Web tracking and ask them to prioritise\nSend all the ticket details to Madhavan and ask them for prioritisation. ETA:17/11\nfollow up on Nov 28th\nFollowup on Dec 12th\n10dec: Check the updates made and respond\nWaiting response from the respective team we are not able see the fall back solution \nComment on the JIRA ticket and also setup the new solution for session ID and client ID\nJan 05th update: Publish the new GTM workspace for ladbrokes and coral. For, code side changes, lets wait for vanila changes about how the new session ID works.\nFor in-game scenario (bingo and casino) setup a call and check if they can use the vanila framework. Vignesh will check on this\nJan 7th - Publish Notification is in review\nJan 8th - Prateek to followup for approval on GTM publish\nJan 12th: Prateek to check & validate the data post GTM publish\nJan 19th: Still seeing the missing session IDs more than 90% for Lad/Coral\nJan 21st: Updated tickets for portal and platform, communicated on email thread\nJan 28th: session ID implemented in both game_load and game_launch api lower environment, prateek to test. complete by 29/01)\nFeb 04: QA#1 (qa2.www.bwin.com): session ID in game_load_api is different from window variable or cookie value. Call setup for Feb 05\nFeb 09: Updated breakpoint based QA to be continued. \nFeb 10:QA in progress for game_load_api - trying to replicate the issue found in qa2 in prod. Session Id in game_load_api is not matching with session Id in other evetns or with the window level variable. Trying to validate iif this is due to iframe context changes.\nFeb 11: Pending cases QA continued ETA FEb 13th\nFeb 16: Pending cases QA - delayed. Will pick up today.\nFeb 18: Delayed\nFeb 19: Working on it\nFeb 23: QA in progress., ETA24/02, push back to devs\nFeb 25th: They will again pick this in next sprint (4th march)\nMar 10: followed up. Folowup again today"}, {"id": 16, "task": "India Workshop decks", "desc": "Project Velocity deck", "who": "Prateek", "status": "Completed", "sprint": "Sprint 4", "assigned": "4/2/2026", "start": "9/2/2026", "end": "20/02/2026", "due": "nan", "links": "Project Velocity", "comments": "Feb 09: Initial draft in progress \nFeb 11: Draft shared, Chai/Vig to review\nFeb 16: Prateek to update suggestions/styling once DLR deck is ready.\nFeb 19: Suggestions received. Working on it, ETA 24th"}, {"id": 17, "task": "CASINO: DLR script injection on non-vanilla sections of site", "desc": "Casino: Coordinate with respective teams and get the DLR script injected on non-vanilla sections of site.\n", "who": "Prateek", "status": "In Progress", "sprint": "Sprint 4", "assigned": "16/02/2026", "start": "16/02/2026", "end": "nan", "due": "nan", "links": "Jira ticket", "comments": "Feb 16:\nFeb 19: Followup with Abhishek\nFeb 23: Prabjeet will be alocating resource in Q2, Abhishek to check with Alex on prioritizing this in Q1\nMarch 12: Confluence for DLR injection tech -spec updated and provided"}, {"id": 18, "task": "POker: DLR script injection on non-vanilla sections of site", "desc": "Poker: Coordinate with respective teams and get the DLR script injected on non-vanilla sections of site.\n", "who": "Prateek", "status": "Postponed", "sprint": "Sprint 4", "assigned": "16/02/2026", "start": "16/02/2026", "end": "nan", "due": "nan", "links": "nan", "comments": "Feb23: Lyold shared resources for the DLR in the current sprint, need to get the dev contact"}, {"id": 19, "task": "BINGO: DLR script injection on non-vanilla sections of site", "desc": "Bingo: Coordinate with respective teams and get the DLR script injected on non-vanilla sections of site.\n", "who": "Prateek", "status": "Postponed", "sprint": "Sprint 4", "assigned": "16/02/2026", "start": "16/02/2026", "end": "nan", "due": "nan", "links": "nan", "comments": "Feb 16:"}, {"id": 20, "task": "Site datalayer structure optimization", "desc": "Datalayer structure optimization to reduce container size", "who": "Prateek, Sahil", "status": "In Progress", "sprint": "Sprint 4", "assigned": "4/2/2026", "start": "17/02/2026", "end": "18/03/2026", "due": "nan", "links": "nan", "comments": "Feb 04; Prateek to start on 17th Feb\nFeb 25th: Need to review with chai\nMarch 12:"}, {"id": 21, "task": "slider games tracking", "desc": "slider game tracking spec needs to be created, as this might be switched to web in future, lets get this checked with Akhila and prepare the spec", "who": "Sahil", "status": "On Hold", "sprint": "Sprint 1", "assigned": "15/10/2025", "start": "12/11/2025", "end": "9/1/2026", "due": "nan", "links": "Confluence", "comments": "Did sample deposit and FTD 17 & 18th July. Out of 10 transaction only 2 have API events.\nTesting is ongoing with Raju and we still see sometimes few api events are not reported. next check July 30,2025\nLower environment is down coral and ladbrokes. for sportingbet br testing is completed as on 31/07\nftd_success_api event is not fired because lower environment database has to be updated. Create new credentials and inform them to update the backend data base to see ftd_api event. this has to be completed on or before 5th august\nBetMGM QA is stilpenigns as the code isn;t deploed there and ETA on this 05th/08/25\nbecause of proxy error we are missing few api events and Raju is manually push these events one more time and see if those are going to be successful, if yes, then this needs be again code change for all ther error events needs be released after 3-5 seconds after a failure\nCoral and Ladbrokes went live on 12th August and for ROW not yet. pproxy error still exist- so far data is reporting as expected\nAll labels released on 18th August. validation is pending\nSpeak with bala on client ID issue - 28/08\nVanila implemented the chanegs and data improved, however, we are still missing the clietn ID values\nProxy server email under triage.. lets followup on november 03rd\nFollowup with ganesh iyer - followup on november 03rd\npayments team made the fix and wt team chedked its working fine in aws evn\nabhishhek need to followup on brazil related \n20th November it may go live\nProxy server implementation is picked up on 12th november sprint\nClient ID code change is going live today\n\nCall scheduled for Dec 01\nMissing of some data for some labels is due to apple pay payment method issue team is working on it to fix they are aiming to fix this in lower Evns\nFor proxy errors santosh team published a change into prod on Dec 4th but that didnt worked we asked them to revert back the changes to normal inorder to loss the data\n\n10Dec: Avinash team to provide details after the applied fixes. nAveen to vlaidate\nCheck wth raju on missing api event for provided txn id\nproxy server issue fix was enabled in all prod labels. Shared update in the group on 22/12\nAnd raju yet confimr the issue which is casuing from applepay \nJan5th follow up done. setup a call with Swamy to discussion about apple pay payment method\njan7th - Call shceduled on jan 8th and shared the PP data by payment method \n\n\n\nLatest update on Slider game:\n\n- Team will push the changes into deployment approx 20-21st Feb.\n\n- Dhyanesh scheuled a call for 10th Feb.\n\n- Feb 10: Dhyanesh requested further tracking requirement for wrappers which will be handle by sports team.\n\n- Feb 12: Team will push the changes into deployment approx 20-21st Feb.\n\n- Feb 23: Requested update in grp chat, waiting for response.\n\n- Feb 24: Chnages merged to master branch from their side, waiting for updates from their side for prod deployment.\nFeb 25th: same as above\n\n- Mar 09th: Changes deployed in prod for Android in bwin es. Data checked from our side, it looks fine.\n\n- Mar 11th:- Requested updates from Dhyanesh on changes to be deployed into IOS app\n\n- Mar 12th: Going live this month for IOS app. Also, they requested new even for bottom nav click (eg: casino)."}, {"id": 22, "task": "Updates to the Google Consent mode update tag", "desc": "There is concern from the marketing team where consent mode is causing potential attribution and compliance issues. To fix this we need to have the portal team send a dataLayer event only when user updates their consent, post this change we need to update the update GCM tag to sync up the changes", "who": "Sahil", "status": "In Progress", "sprint": "Sprint 2", "assigned": "6/11/2025", "start": "6/11/2025", "end": "25/11/2025", "due": "nan", "links": "Jira \n\nGTM workspace \n\nUAT sheet", "comments": "Ask Sai team, if they can help us with the spec part, as BetMGM is also part of it, however, this includes ROW labels aswell\nSahil to setup a call with Vignesh on 13/11 and start the tech spec along with Akhila help\nJira ticket is created and share with PM and send an email- its completed\nFollowup - December 02nd \nAbishak will follow up \nTo follow up with Abhishek on 09/12/2025\nVignesh has responded. Next Followup on 15/12/2025\npradyna will connect with sunil and they will update us on the status\nJan 05th update: need to followup on this task with pradnya and team\nJan 7th - Yet to get an update from pradnya follow up today \nJan 12th - Task picked up in sprint 2 and to follow up on 19th Jan.\nJan 19 - Follow up and update here\nJan 21st update: sprint starts today, so need to folowup by jan 30th\nJan 28th update: Sahil and vinesh co-ordinate and share the event name structures with dev\nFeb 02nd: dev requested to wait on the UAT, followup on feb 5th\n\nFeb 04th: Sandeep informed us about an existing event (trackOptanonEvent), which is pushed directly by OneTrust. We need to audit this event by 06 Feb to check whether it meets our requirements. If it does, a new dataLayer event will not be required. Otherwise, we will proceed with implementing a new event.\n\nFeb 09th: Need to have a call with Luke and Marco this week to explain them about the challenges of handling the update call for returning users with new solution.\n\nFeb 10th: Initiated discussion with Luke and Marco in chat group, waiting for their response.\n\nFeb 12th: Initiated discussion with Luke and Marco in chat group, waiting for their response.\n\nFeb 16th: We tried few approaches from our side to handle the update GCM, testing is in progress.\n\nFeb 17: GTM workspace is ready with new triggers/changes, QA also done. Now, UAT document needs to prepare for GTM publish notif. Also, have sent the information message to the Marco & Luke in chat group. Chat Group \n\nFeb 23: Doing UAT for changes, will request the GTM publish by this week..\n\nFeb 24: UAT for bwin com is completed/documented. Now, same GCM changes for update call to be replicated to all GVC child zone container as well and perform the QA/UAT also.\n\nMar 09th: Changes made in few zone containers. UAT needs to be done.\n\nMar 11th: Same as above\n\nMar 12th: Same as above"}, {"id": 23, "task": "SGTM Tagging Optimization", "desc": "DLR - Fullscale - optimization of tagging", "who": "Sahil, Prateek, Venkat", "status": "In Progress", "sprint": "Sprint 4", "assigned": "4/2/2026", "start": "10/2/2026", "end": "nan", "due": "nan", "links": "nan", "comments": "Feb 04: Will create new workspace for tagging optimizations once the setup QA is complete\nFeb 09: Workspace created and existing changes updated. Templates code in review. \nFeb 11th: Prateek wokring on removing temporariy migrated tags with permanent solution (5/8 done). Venkat/Sahil to work on addtional optimizations (trigger consolidation etc)\nFeb 12: All permanently migratable tags are migrated but QA is awaited - blocked by server failure.\nFeb 16: Updated mapping documentation done. can start to consolidate tags today.\nFeb 18: Removed duplicates/redunddancies - published. Working on optimizing the relay\nFeb 19: Removed duplicate DL event pushes (QA2). Working on considated template trigger\nFeb 23: Optimized script is live, Removed additional parsing for all variables\nFeb 26 : Venkat: Login Events were optimised, working on Registration events optimization\nFeb 27: Prateek: Naveen G's template for merging betFilters and feedback form events is in discussion with the data team.\nMar 9 : Will continue to optimize more tags today . Only Login related tags were optimized so far along with other generic modiifcations\nMar 11: Optimization is being done parallely with validation and debugging of issues"}, {"id": 24, "task": "Source Medium Discrepancy in DLR", "desc": "Debug and fixes for session medium parameters in DLR SST", "who": "Venkat", "status": "In Progress", "sprint": "Sprint 5", "assigned": "5/2/2026", "start": "6/2/2026", "end": "10/2/2026", "due": "nan", "links": "nan", "comments": "Feb 06: started debugging the issue. Will try to figure out and fix the issue by feb 10\n\nFeb 9: Recent fix to page view did not improve the coverage. Further checks needs to be done to find the gaps.\nNotes: Absence of the DLR script on certain pages (e.g., TikTok landing pages) due to the vanilla framework not being present is causing the mismatch. This is expected behavior for now. Vignesh is currently discussing implementation of the DLR script on all landing pages, which should fix the issues. Will update with session-wise reasons for each mismatch.\n\nFeb 11: https://coralracing.sharepoint.com/:x:/r/sites/ProductAnalyticsOptimisation-WebTracking/Shared%20Documents/General/DLR%20Validation%20Reports/DLR%20Traffic%20Atrribution%20Validation.xlsx?d=wf96d29ab67384fda9db2dcbaa4e55d9a&csf=1&web=1&e=vUNwpn This sheet contains reasons for missing traffic attribution. Investiagtion on going for the remaining ones.\n\nFeb 16 : Reasons added for mising atribution values in above sheet, futher analysis to be done on pending ones\nFeb 18 : No progress on 'search' source dsicrepancies \nFEb 19 : Validated further for recent data\nFeb 23: Dependent on landing page DLR implementation (Vignesh)\n\nMar 2 : on hold , dependent on landin pages DLR Implementation\n\nMar 9 : on hold\n\nMArc 11 : Awaiting final confirmation of DLR script implementation to continue validation"}, {"id": 25, "task": "DLR Data Validation", "desc": "Data Validation for DLR Events", "who": "Venkat", "status": "In Progress", "sprint": "Sprint 4", "assigned": "10/2/2026", "start": "10/2/2026", "end": "nan", "due": "nan", "links": "nan", "comments": "Feb 10 : Data Validation in progress for events that went live so far\nFeb 11: Data Validation and Debugging in progress : Issues were identified and are being added to the respective sheet\nFeb 16 : In progress for the recently pusblished tags, remarks updated for previous ones.\nFeb 18 : All Events Validation on Highlevel. List of Events with issues and reasons : \n\nhttps://docs.google.com/spreadsheets/d/1xmk8jtOzG0EajaYtQc6XIZUH8ezquizjSCKDWRZX87A/edit?gid=1759058590#gid=1759058590\n\nFeb 19 : Validation in Progress : https://docs.google.com/spreadsheets/d/1xmk8jtOzG0EajaYtQc6XIZUH8ezquizjSCKDWRZX87A/edit?gid=0#gid=0 First Iteration Expected Date : 25th Feb (Wed) , needs further changes to sigma dashboard\n\nFeb 26 : In progress, expected first iteration cosure by Wednesday, 4th March\n\nMar 2nd: In progress\n\nMar 9th : In progress , should be able to finish today and work on fixes\n\nMar 11 : Validation is completed. Identified issues are being fixed tag by tag. Expected completion today EOD/ Tommorow first half Link :https://docs.google.com/spreadsheets/d/1xmk8jtOzG0EajaYtQc6XIZUH8ezquizjSCKDWRZX87A/edit?gid=928854993#gid=928854993"}, {"id": 26, "task": "Update the vanila cookie logic for session ID", "desc": "create a new JIRA ticket for updaing the session ID and use the old logic of session and not to rely on creating a new cookie", "who": "Vignesh", "status": "In Progress", "sprint": "Sprint 1", "assigned": "29/12/2025", "start": "29/12/2025", "end": "16/02/2026", "due": "nan", "links": "FFW-14267", "comments": "Jan 05th update: Vignesh is going to speak with sinisha today and share the ticket with him with the context\nJan 8th - Vignesh to followup with Sinisa on the ticket\nJan 19th: Changes goes live on 21st jan then needs to validate the data on 27th Jan.\nJan 28th: the updated solution is not working as expected. so, vanila has to remove the cookies and read theGA4 session cookie and pass the information. Speak with sinisha and next update Feb 4th\nJan 29th: Call setup tomorrow and explain the next steps\nFeb 2nd: remove the vanila cookie, and read the value form ga session cookie directly\nFeb 9: Vignesh to work on the scenario where the multiple cookie are created for the same label and if not replicable post it to Sinisa\nFeb 16th: Testing completed and was able to replicate the issue in BWIN COM where ga cookies are created on multiple domains probably due to iframe or other contents\nFeb 18: Reach out to Sinisa and asked for changes to check if the session ID belong to the same date and if not do not send session_id parameter\nFeb 23th: Send a message to Sinisa in the login group to add the changes to the login API events for session ID\nFeb 26: New JIRA ticket has been created per request from Sinisa and shared in the group FFW-22994\nMar 9: Work in progress by Vanilla in the current sprint 5 ending on 18/3\nMar 11: Karim is working on it and yesterday he revealed that he will completed the code changes today"}, {"id": 27, "task": "India Workshop PPT creation", "desc": "Create PPT for DLR and server-side implementation for Project Herschel for the India workshop", "who": "Vignesh", "status": "Completed", "sprint": "Sprint 4", "assigned": "9/2/2026", "start": "9/2/2026", "end": "16/02/2026", "due": "nan", "links": "nan", "comments": "Feb 11:it is currently in progress ETA by Feb 13th\nFeb 12:it is currently in progress ETA by Feb 16th\nFeb 16: Work in progress, will be complete EOD\nFeb 18: Meeting setup with Chai and Prateek to walkthrough the PPT today\nFeb 23: Add feedbacks from the discussion in the PPT\nFeb 26: Completed all the changes for the PPT, need to review with Chai"}, {"id": 28, "task": "Landing Page DLR", "desc": "Adding DLR to the test landing page and perform DLR testing on the landing page", "who": "Vignesh", "status": "In Progress", "sprint": "Sprint 5", "assigned": "6/2/2026", "start": "9/2/2026", "end": "16/02/2026", "due": "nan", "links": "nan", "comments": "Feb 9: Send the DLR script to Luciano so that he can create a new test landing page directly in PROD for WT team to test\nFeb 11th:Script shared with luciana it was added in LP to test Custome Dl events \nFeb 12: Page is unavailable for testing, Luciano mentioned that there is network issue impacting once its resolved testing can resume\nFeb 16: Basic testing is completed, working with Luciano to add custom events to make sure if works in certain cases\nFeb 18: UTM testing is also completed and it working as expected, need further planning on when we can push the changes to prod or to hold off until cost estimatations are finalized\nFeb 19th coordinate with luciano\nFeb 23: Meeting setup with Luciano and Drazen to talk about putting DLR on all landing pages\nFeb 26: Followed up with Luciano, awaiting response\nMar 9: Luciano shared the module LP links that currently have the DLR injected, but it does not work. Followed up with Luciano on Mar 6, awaiting response\nMar11: Root cause identified on why DLR does not work in LPs, further conversations with Luciano and Somya revealed that the changes required a formal release to remove the resetting of dataLayer"}, {"id": 29, "task": "Snowplow Implementation Planner", "desc": "Post Answers to Infosec for snowplow questions", "who": "Vignesh", "status": "In Progress", "sprint": "Sprint 5", "assigned": "9/2/2026", "start": "23/02/2026", "end": "11/3/2026", "due": "nan", "links": "nan", "comments": "nan"}, {"id": 30, "task": "GIT Lab Reporsitory", "desc": "Creating a new repository in GITLAB for WT-Tech", "who": "Vignesh", "status": "In Progress", "sprint": "Sprint 5", "assigned": "9/2/2026", "start": "9/2/2026", "end": "18/03/2026", "due": "nan", "links": "nan", "comments": "Mar 11: Yet to reach out to Vanilla team on this"}, {"id": 31, "task": "Project Herschel Dependency", "desc": "One slider PPT for listing out all the dependency team and RACI chart", "who": "Vignesh", "status": "In Progress", "sprint": "Sprint 5", "assigned": "9/3/2026", "start": "9/3/2026", "end": "11/3/2026", "due": "nan", "links": "nan", "comments": "Mar 11: Work in progress and will done by EOD"}, {"id": 32, "task": "Alert for sporting team", "desc": "Alert for sporting team on purchase count > 5000 for a customer", "who": "Meghana", "status": "Completed", "sprint": "Sprint 5", "assigned": "24/02/2026", "start": "24/02/2026", "end": "2/3/2026", "due": "nan", "links": "nan", "comments": "Feb 27: Made the alert, need to update on paradime\nMar 9: Completed, received new request to add registration_date as well, will complete by Mar 10th\nMar 11: Completed"}, {"id": 33, "task": "Remove alerts from 95%", "desc": "marquee, home_events, ab_test_events, olympic_widgets", "who": "Meghana", "status": "Completed", "sprint": "Sprint 5", "assigned": "24/02/2026", "start": "24/02/2026", "end": "25/02/2026", "due": "nan", "links": "nan", "comments": "Feb 27: Completed"}, {"id": 34, "task": "Dashboard updates from call", "desc": "Update the dashboards with the requested changes", "who": "Meghana", "status": "In Progress", "sprint": "Sprint 5", "assigned": "24/02/2026", "start": "24/02/2026", "end": "17/03/2026", "due": "nan", "links": "nan", "comments": "Feb 27: In progress\nMar 9: Updating tables and data, will complete by wed/thurs\nMar 12: Need 1-2 days time"}, {"id": 35, "task": "DLR", "desc": "Add view_item_list and select_item", "who": "Meghana", "status": "Completed", "sprint": "Sprint 5", "assigned": "1/3/2026", "start": "1/3/2026", "end": "3/3/2026", "due": "nan", "links": "nan", "comments": "Mar 9: Completed"}, {"id": 36, "task": "DLR", "desc": "Expand list of event param values", "who": "Meghana", "status": "Completed", "sprint": "Sprint 5", "assigned": "2/3/2026", "start": "2/3/2026", "end": "4/3/2026", "due": "nan", "links": "nan", "comments": "Mar 9: Completed"}, {"id": 37, "task": "DLR", "desc": "Slide for user properties", "who": "Meghana", "status": "Completed", "sprint": "Sprint 6", "assigned": "6/3/2026", "start": "6/3/2026", "end": "10/3/2026", "due": "nan", "links": "nan", "comments": "Mar 9: Will complete by mar 10th\nMar 11: Completed"}, {"id": 38, "task": "DLR", "desc": "Add tag_name for items slide", "who": "Meghana", "status": "Completed", "sprint": "Sprint 6", "assigned": "6/3/2026", "start": "6/3/2026", "end": "9/3/2026", "due": "nan", "links": "nan", "comments": "Mar 9: Added filter but having an issue with few events"}, {"id": 39, "task": "Confluence", "desc": "Confluence updates for paradime", "who": "Meghana", "status": "In Progress", "sprint": "Sprint 6", "assigned": "10/3/2026", "start": "10/3/2026", "end": "13/03/2026", "due": "nan", "links": "nan", "comments": "Mar 12: In progress"}, {"id": 40, "task": "Cookie consent", "desc": "Cookie Consent Analysis DLR", "who": "Meghana", "status": "In Progress", "sprint": "Sprint 6", "assigned": "12/3/2026", "start": "12/3/2026", "end": "17/03/2026", "due": "nan", "links": "nan", "comments": "nan"}, {"id": 41, "task": "Req document", "desc": "Requirement document template", "who": "Meghana", "status": "In Progress", "sprint": "Sprint 6", "assigned": "12/3/2026", "start": "12/3/2026", "end": "13/03/2026", "due": "nan", "links": "nan", "comments": "nan"}, {"id": 42, "task": "Gambling controls dashboard", "desc": "Create dashboard for Hyma team - GC events", "who": "Meghana, Narayana", "status": "In Progress", "sprint": "Sprint 5", "assigned": "23/02/2026", "start": "23/02/2026", "end": "12/3/2026", "due": "nan", "links": "nan", "comments": "March 9: Meghana Started wroking on it \nMarch 12: Completed, need to verify a few things \nhttps://app.sigmacomputing.com/entain-group/workbook/GC-Dashboard-4VKXapdjrukFRRyVdhjWcO/edit?:nodeId=91RLtKGEiv"}, {"id": 43, "task": "KT of Power BI report poc Status", "desc": "need to give KT to Meghana Regarding POC status report", "who": "Narayana", "status": "Completed", "sprint": "Sprint 6", "assigned": "6/3/2026", "start": "6/3/2026", "end": "12/3/2026", "due": "nan", "links": "nan", "comments": "MArch 9 will setup a call \nMArch 11 done"}, {"id": 44, "task": "Power BI tags status update", "desc": "Update power BI dashboard weekly", "who": "Narayana", "status": "In Progress", "sprint": "Sprint 6", "assigned": "6/3/2026", "start": "6/3/2026", "end": "nan", "due": "nan", "links": "nan", "comments": "Every friday it needs to be updated"}, {"id": 45, "task": "Power BI tags status update", "desc": "Power BI timelines dashboard needs to be changed from image to actual roadmap", "who": "Narayana", "status": "Completed", "sprint": "Sprint 6", "assigned": "6/3/2026", "start": "6/3/2026", "end": "10/3/2026", "due": "nan", "links": "nan", "comments": "nan"}, {"id": 46, "task": "Alternative solutions to Server-side tagging (AEA)", "desc": "Proposals review, draft questions", "who": "Prateek", "status": "Completed", "sprint": "Sprint 6", "assigned": "6/3/2026", "start": "6/3/2026", "end": "9/3/2026", "due": "nan", "links": "Internal discussion\n\nOp2: param-count", "comments": "Mar 09: Adding questions, List of events with all params\nMarch 11: Meeting done, waitnig for implementation from AEA team"}, {"id": 47, "task": "AWS scaling trendline data", "desc": "Provide Event count trend (hourly) to Infra team for scripting AWS scaling logic", "who": "Prateek", "status": "Completed", "sprint": "Sprint 6", "assigned": "6/3/2026", "start": "2/3/2026", "end": "13/03/2026", "due": "nan", "links": "nan", "comments": "Mar 09: Shared csv, will create LS dash\nMar 11: To create LS dashboard"}, {"id": 48, "task": "betslip ids descrabency analysis overview", "desc": "Oliver asked to provide the users data that are effecting purchase data in GA and analysis to the stakeholder", "who": "Narayana", "status": "Completed", "sprint": "Sprint 6", "assigned": "9/3/2026", "start": "9/3/2026", "end": "9/3/2026", "due": "nan", "links": "nan", "comments": "Mar 09: need to provide data by today with priority\nMar 11: completed"}, {"id": 49, "task": "Registration sucess and API data for party poker", "desc": "DB want to analysi registration success and API that are have to be more with new implementation but getting in same trand need to analysis the data", "who": "Narayana", "status": "Completed", "sprint": "Sprint 6", "assigned": "9/3/2026", "start": "9/3/2026", "end": "10/3/2026", "due": "nan", "links": "nan", "comments": "mar 09: just started the analyisis\nmar 11:completed"}, {"id": 50, "task": "duplicate users journy", "desc": "Tanya want data to validate duplicate registrations for past 2 weeks data and ther journy", "who": "Narayana", "status": "Completed", "sprint": "Sprint 6", "assigned": "9/3/2026", "start": "9/3/2026", "end": "11/3/2026", "due": "nan", "links": "nan", "comments": "Mar 09: yet to start\nMar 11: completed"}, {"id": 51, "task": "DLR Data Validation", "desc": "Data Validation for DLR Events", "who": "Naveen", "status": "In Progress", "sprint": "Sprint 6", "assigned": "2/3/2026", "start": "2/3/2026", "end": "nan", "due": "nan", "links": "nan", "comments": "March 9th: data validation for tag lavel params completed\nMarch 10th: Data validation for common params under my name was completed\nMarch 11th: Data validation for common params under other team mates was picked up and it is in progress \nMarch 12th: Data validation for common params and user properties under myname and sai one was completed will try to pick to today from sahil's"}, {"id": 52, "task": "DLR script injection confluence", "desc": "Create confluence page (tech-spec) for DLR script injection", "who": "Prateek", "status": "Completed", "sprint": "Sprint 6", "assigned": "10/3/2026", "start": "nan", "end": "nan", "due": "nan", "links": "Confluence page", "comments": "March 12: Confluence page created and reviewed by Vignesh. Shared to relevant tickets and teams."}, {"id": 53, "task": "GTM dependent events", "desc": "List GTM dependent events along with breakdowns to category/action / triggers", "who": "Prateek", "status": "In Progress", "sprint": "Sprint 6", "assigned": "10/3/2026", "start": "nan", "end": "nan", "due": "nan", "links": "nan", "comments": "nan"}, {"id": 54, "task": "DLR - partytown test SBBR", "desc": "Perform tests for DLR script and tagging on TEST envt (with partytown)", "who": "Prateek", "status": "In Progress", "sprint": "Sprint 5", "assigned": "10/3/2026", "start": "nan", "end": "nan", "due": "nan", "links": "nan", "comments": "nan"}];
+let filteredTasks = [...allTasks];
+let charts = {};
+const originalTaskCount = allTasks.length;
+let newTaskIds = [];
+let firebaseReady = false;
+let db = null;
+
+// ========== FIREBASE SETUP ==========
+// INSTRUCTIONS: Replace the config below with YOUR Firebase project config
+// Go to: https://console.firebase.google.com → Create project → Realtime Database → Get config
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+  projectId: "YOUR_PROJECT",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+
+function initFirebase() {
+  try {
+    if (firebaseConfig.apiKey === "YOUR_API_KEY") {
+      console.log('Firebase not configured yet. Using localStorage fallback.');
+      loadFromLocalStorage();
+      return;
+    }
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.database();
+    firebaseReady = true;
+    
+    // Listen for real-time changes
+    db.ref('tasks').on('value', (snapshot) => {
+      const firebaseTasks = snapshot.val();
+      if (firebaseTasks) {
+        // Remove old firebase tasks from allTasks
+        while (allTasks.length > originalTaskCount) allTasks.pop();
+        newTaskIds = [];
+        
+        Object.keys(firebaseTasks).forEach(key => {
+          const t = firebaseTasks[key];
+          t.id = allTasks.length;
+          t.firebaseKey = key;
+          allTasks.push(t);
+          newTaskIds.push(t.id);
+        });
+        
+        updateExportButton();
+        populateFilters();
+        applyFilters();
+      }
+    });
+    
+    console.log('Firebase connected! Tasks sync in real-time.');
+  } catch(e) {
+    console.log('Firebase init failed, using localStorage:', e);
+    loadFromLocalStorage();
+  }
+}
+
+function loadFromLocalStorage() {
+  try {
+    const saved = localStorage.getItem('dashboard_tasks');
+    if (saved) {
+      const savedTasks = JSON.parse(saved);
+      savedTasks.forEach(t => {
+        t.id = allTasks.length;
+        allTasks.push(t);
+        newTaskIds.push(t.id);
+      });
+      updateExportButton();
+    }
+  } catch(e) { console.log('No saved tasks found'); }
+}
+
+function saveTasks() {
+  if (!firebaseReady) {
+    // Fallback to localStorage
+    const newTasks = allTasks.filter(t => newTaskIds.includes(t.id)).map(t => ({...t}));
+    localStorage.setItem('dashboard_tasks', JSON.stringify(newTasks));
+  }
+}
+
+function saveTaskToFirebase(taskData) {
+  if (firebaseReady) {
+    return db.ref('tasks').push(taskData);
+  } else {
+    saveTasks();
+    return Promise.resolve();
+  }
+}
+
+function deleteTaskFromFirebase(task) {
+  if (firebaseReady && task.firebaseKey) {
+    return db.ref('tasks/' + task.firebaseKey).remove();
+  }
+  return Promise.resolve();
+}
+
+function updateTaskInFirebase(task) {
+  if (firebaseReady && task.firebaseKey) {
+    const data = {...task};
+    delete data.id;
+    delete data.firebaseKey;
+    return db.ref('tasks/' + task.firebaseKey).set(data);
+  }
+  return Promise.resolve();
+}
+
+function updateExportButton() {
+  if (newTaskIds.length > 0) {
+    document.getElementById('btnExportNew').style.display = 'inline-block';
+    document.getElementById('btnExportNew').textContent = '📤 Export New Tasks (' + newTaskIds.length + ')';
+  } else {
+    document.getElementById('btnExportNew').style.display = 'none';
+  }
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+  initFirebase();
+  populateFilters();
+  applyFilters();
+});
+
+function populateFilters() {
+  // Helper function to parse dates in various formats
+  const parseDate = (dateStr) => {
+    if (!dateStr || dateStr === 'nan') return null;
+    
+    // Try parsing different formats
+    let date;
+    if (dateStr.includes('/')) {
+      // Format: "1/9/2025" or "12/1/2026" or "22/01/2026"
+      const parts = dateStr.split('/');
+      if (parts.length === 3) {
+        const day = parseInt(parts[0]);
+        const month = parseInt(parts[1]);
+        const year = parseInt(parts[2]);
+        date = new Date(year, month - 1, day);
+      }
+    } else if (dateStr.includes('-')) {
+      // Format: "2026-01-12"
+      date = new Date(dateStr);
+    }
+    
+    return date && !isNaN(date.getTime()) ? date : null;
+  };
+  
+  // Extract unique months from tasks
+  const monthSet = new Set();
+  allTasks.forEach(t => {
+    const date = parseDate(t.assigned);
+    if (date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      monthSet.add(`${year}-${month}`);
+    }
+  });
+  
+  const months = [...monthSet].sort();
+  const teams = [...new Set(allTasks.map(t => t.who).filter(t => t && t !== 'nan'))].sort();
+  const sprints = [...new Set(allTasks.map(t => t.sprint).filter(s => s && s !== 'nan'))].sort();
+  
+  // Format months as "Month Year" (e.g., "January 2026")
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const formatMonth = (m) => {
+    const [year, month] = m.split('-');
+    return `${monthNames[parseInt(month) - 1]} ${year}`;
+  };
+  
+  document.getElementById('fMonth').innerHTML += months.map(m => `<option value="${m}">${formatMonth(m)}</option>`).join('');
+  document.getElementById('fTeam').innerHTML += teams.map(t => `<option value="${t}">${t}</option>`).join('');
+  document.getElementById('fSprint').innerHTML += sprints.map(s => `<option value="${s}">${s}</option>`).join('');
+}
+
+function applyFilters() {
+  const month = document.getElementById('fMonth').value;
+  const team = document.getElementById('fTeam').value;
+  const status = document.getElementById('fStatus').value;
+  const sprint = document.getElementById('fSprint').value;
+  const start = document.getElementById('fStart').value;
+  const end = document.getElementById('fEnd').value;
+  
+  // Helper function to parse dates
+  const parseDate = (dateStr) => {
+    if (!dateStr || dateStr === 'nan') return null;
+    let date;
+    if (dateStr.includes('/')) {
+      const parts = dateStr.split('/');
+      if (parts.length === 3) {
+        const day = parseInt(parts[0]);
+        const month = parseInt(parts[1]);
+        const year = parseInt(parts[2]);
+        date = new Date(year, month - 1, day);
+      }
+    } else if (dateStr.includes('-')) {
+      date = new Date(dateStr);
+    }
+    return date && !isNaN(date.getTime()) ? date : null;
+  };
+  
+  // Helper to get YYYY-MM format from date string
+  const getYearMonth = (dateStr) => {
+    const date = parseDate(dateStr);
+    if (!date) return '';
+    const year = date.getFullYear();
+    const monthNum = String(date.getMonth() + 1).padStart(2, '0');
+    return `${year}-${monthNum}`;
+  };
+  
+  filteredTasks = allTasks.filter(t => {
+    if (month && getYearMonth(t.assigned) !== month) return false;
+    if (team && t.who !== team) return false;
+    if (status && t.status !== status) return false;
+    if (sprint && t.sprint !== sprint) return false;
+    if (start) {
+      const taskDate = parseDate(t.assigned);
+      const startDate = new Date(start);
+      if (!taskDate || taskDate < startDate) return false;
+    }
+    if (end) {
+      const taskDate = parseDate(t.assigned);
+      const endDate = new Date(end);
+      if (!taskDate || taskDate > endDate) return false;
+    }
+    return true;
+  });
+  
+  updateDashboard();
+}
+
+function resetFilters() {
+  document.getElementById('fMonth').value = '';
+  document.getElementById('fTeam').value = '';
+  document.getElementById('fStatus').value = '';
+  document.getElementById('fSprint').value = '';
+  document.getElementById('fStart').value = '';
+  document.getElementById('fEnd').value = '';
+  applyFilters();
+}
+
+function updateDashboard() {
+  updateStats();
+  updateCharts();
+  updateTaskTable();
+  updateTeamView();
+  updateTimeline();
+  updateRisks();
+}
+
+function updateStats() {
+  const total = filteredTasks.length;
+  const done = filteredTasks.filter(t => t.status === 'Completed').length;
+  const prog = filteredTasks.filter(t => t.status === 'In Progress').length;
+  const hold = filteredTasks.filter(t => t.status === 'On Hold').length;
+  const rate = total > 0 ? ((done/total)*100).toFixed(1) : 0;
+  
+  const today = new Date().toISOString().split('T')[0];
+  const overdue = filteredTasks.filter(t => t.due && t.due < today && t.status !== 'Completed').length;
+  
+  document.getElementById('statsGrid').innerHTML = `
+    <div class="sc blue" onclick="filterByStatus('')"><div class="num">${total}</div><div class="lbl">Total Tasks</div></div>
+    <div class="sc green" onclick="filterByStatus('Completed')"><div class="num">${done}</div><div class="lbl">Completed</div></div>
+    <div class="sc orange" onclick="filterByStatus('In Progress')"><div class="num">${prog}</div><div class="lbl">In Progress</div></div>
+    <div class="sc red" onclick="filterByStatus('On Hold')"><div class="num">${hold}</div><div class="lbl">On Hold</div></div>
+    <div class="sc purple"><div class="num">${rate}%</div><div class="lbl">Completion Rate</div></div>
+    <div class="sc red"><div class="num">${overdue}</div><div class="lbl">⚠️ Overdue</div></div>
+  `;
+}
+
+function filterByStatus(status) {
+  document.getElementById('fStatus').value = status;
+  applyFilters();
+  showPage('tasks');
+}
+
+function updateCharts() {
+  // Status Chart
+  const statusData = {};
+  filteredTasks.forEach(t => statusData[t.status] = (statusData[t.status] || 0) + 1);
+  
+  if (charts.status) charts.status.destroy();
+  charts.status = new Chart(document.getElementById('statusChart'), {
+    type: 'doughnut',
+    data: {
+      labels: Object.keys(statusData),
+      datasets: [{
+        data: Object.values(statusData),
+        backgroundColor: ['#2ecc71','#f39c12','#e74c3c','#95a5a6']
+      }]
+    },
+    options: {responsive: true, plugins: {legend: {position: 'bottom'}}}
+  });
+  
+  // Team Chart
+  const teamData = {};
+  filteredTasks.forEach(t => teamData[t.who] = (teamData[t.who] || 0) + 1);
+  const topTeams = Object.entries(teamData).sort((a,b) => b[1] - a[1]).slice(0,10);
+  
+  if (charts.team) charts.team.destroy();
+  charts.team = new Chart(document.getElementById('teamChart'), {
+    type: 'bar',
+    data: {
+      labels: topTeams.map(t => t[0]),
+      datasets: [{label: 'Tasks', data: topTeams.map(t => t[1]), backgroundColor: '#667eea'}]
+    },
+    options: {responsive: true, scales: {y: {beginAtZero: true}}, onClick: (e, items) => {
+      if (items.length) {
+        const team = topTeams[items[0].index][0];
+        document.getElementById('fTeam').value = team;
+        applyFilters();
+        showPage('tasks');
+      }
+    }}
+  });
+  
+  // Sprint Chart
+  const sprintData = {};
+  filteredTasks.forEach(t => {
+    if (!sprintData[t.sprint]) sprintData[t.sprint] = {done:0, prog:0, hold:0};
+    if (t.status === 'Completed') sprintData[t.sprint].done++;
+    else if (t.status === 'In Progress') sprintData[t.sprint].prog++;
+    else if (t.status === 'On Hold') sprintData[t.sprint].hold++;
+  });
+  
+  const sprints = Object.keys(sprintData).filter(s => s && s !== 'nan').sort();
+  
+  if (charts.sprint) charts.sprint.destroy();
+  charts.sprint = new Chart(document.getElementById('sprintChart'), {
+    type: 'bar',
+    data: {
+      labels: sprints,
+      datasets: [
+        {label: 'Completed', data: sprints.map(s => sprintData[s].done), backgroundColor: '#2ecc71'},
+        {label: 'In Progress', data: sprints.map(s => sprintData[s].prog), backgroundColor: '#f39c12'},
+        {label: 'On Hold', data: sprints.map(s => sprintData[s].hold), backgroundColor: '#e74c3c'}
+      ]
+    },
+    options: {responsive: true, scales: {x: {stacked: true}, y: {stacked: true, beginAtZero: true}}}
+  });
+  
+  // Trend Chart
+  const parseDate = (dateStr) => {
+    if (!dateStr || dateStr === 'nan') return null;
+    let date;
+    if (dateStr.includes('/')) {
+      const parts = dateStr.split('/');
+      if (parts.length === 3) {
+        const day = parseInt(parts[0]);
+        const month = parseInt(parts[1]);
+        const year = parseInt(parts[2]);
+        date = new Date(year, month - 1, day);
+      }
+    } else if (dateStr.includes('-')) {
+      date = new Date(dateStr);
+    }
+    return date && !isNaN(date.getTime()) ? date : null;
+  };
+  
+  const monthData = {};
+  filteredTasks.forEach(t => {
+    const date = parseDate(t.assigned);
+    if (date) {
+      const year = date.getFullYear();
+      const monthNum = String(date.getMonth() + 1).padStart(2, '0');
+      const m = `${year}-${monthNum}`;
+      if (!monthData[m]) monthData[m] = {done:0, prog:0};
+      if (t.status === 'Completed') monthData[m].done++;
+      else if (t.status === 'In Progress') monthData[m].prog++;
+    }
+  });
+  
+  const months = Object.keys(monthData).sort().slice(-6);
+  
+  if (charts.trend) charts.trend.destroy();
+  charts.trend = new Chart(document.getElementById('trendChart'), {
+    type: 'line',
+    data: {
+      labels: months,
+      datasets: [
+        {label: 'Completed', data: months.map(m => monthData[m].done), borderColor: '#2ecc71', fill: false},
+        {label: 'In Progress', data: months.map(m => monthData[m].prog), borderColor: '#f39c12', fill: false}
+      ]
+    },
+    options: {responsive: true, scales: {y: {beginAtZero: true}}, onClick: (e, items) => {
+      if (items.length) {
+        const month = months[items[0].index];
+        document.getElementById('fMonth').value = month;
+        applyFilters();
+        showPage('tasks');
+      }
+    }}
+  });
+}
+
+function updateTaskTable() {
+  const html = `
+    <thead><tr>
+      <th>Task</th><th>Description</th><th>Responsible</th><th>Status</th><th>Sprint</th><th>Assigned</th><th>End Date</th><th>Action</th>
+    </tr></thead>
+    <tbody>${filteredTasks.map(t => {
+      const badge = t.status === 'Completed' ? 'b-done' : t.status === 'In Progress' ? 'b-prog' : t.status === 'On Hold' ? 'b-hold' : 'b-post';
+      const desc = t.desc && t.desc !== 'nan' ? t.desc : '';
+      const endDate = t.end && t.end !== 'nan' ? t.end.substring(0,10) : '';
+      return `<tr class="clickable" onclick="showTaskDetail(${t.id})">
+        <td style="max-width:200px">${t.task.substring(0,50)}${t.task.length > 50 ? '...' : ''}</td>
+        <td style="max-width:300px;white-space:normal;line-height:1.4">${desc.substring(0,100)}${desc.length > 100 ? '...' : ''}</td>
+        <td>${t.who}</td>
+        <td><span class="badge ${badge}">${t.status}</span></td>
+        <td>${t.sprint}</td>
+        <td>${t.assigned.substring(0,10)}</td>
+        <td>${endDate}</td>
+        <td><button class="btn btn-p" onclick="event.stopPropagation();showTaskDetail(${t.id})">View</button></td>
+      </tr>`;
+    }).join('')}</tbody>
+  `;
+  document.getElementById('taskTable').innerHTML = html || '<tr><td colspan="8" class="empty">No tasks found</td></tr>';
+}
+
+function searchTasks() {
+  const q = document.getElementById('taskSearch').value.toLowerCase();
+  const rows = document.querySelectorAll('#taskTable tbody tr');
+  rows.forEach(row => {
+    const text = row.textContent.toLowerCase();
+    row.style.display = text.includes(q) ? '' : 'none';
+  });
+}
+
+function updateTeamView() {
+  const teamStats = {};
+  filteredTasks.forEach(t => {
+    if (!teamStats[t.who]) teamStats[t.who] = {total:0, done:0, prog:0, hold:0};
+    teamStats[t.who].total++;
+    if (t.status === 'Completed') teamStats[t.who].done++;
+    else if (t.status === 'In Progress') teamStats[t.who].prog++;
+    else if (t.status === 'On Hold') teamStats[t.who].hold++;
+  });
+  
+  const html = `<table>
+    <thead><tr><th>Team Member</th><th>Total</th><th>Completed</th><th>In Progress</th><th>On Hold</th><th>Rate</th><th>Progress</th></tr></thead>
+    <tbody>${Object.entries(teamStats).sort((a,b) => b[1].total - a[1].total).map(([name, stats]) => {
+      const rate = ((stats.done / stats.total) * 100).toFixed(1);
+      return `<tr class="clickable" onclick="document.getElementById('fTeam').value='${name}';applyFilters();showPage('tasks')">
+        <td><strong>${name}</strong></td>
+        <td>${stats.total}</td>
+        <td><span class="badge b-done">${stats.done}</span></td>
+        <td><span class="badge b-prog">${stats.prog}</span></td>
+        <td><span class="badge b-hold">${stats.hold}</span></td>
+        <td>${rate}%</td>
+        <td><div class="pbar"><div class="pfill" style="width:${rate}%"></div></div></td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+  document.getElementById('teamDetails').innerHTML = html;
+}
+
+function updateTimeline() {
+  const parseDate = (dateStr) => {
+    if (!dateStr || dateStr === 'nan') return null;
+    let date;
+    if (dateStr.includes('/')) {
+      const parts = dateStr.split('/');
+      if (parts.length === 3) {
+        const day = parseInt(parts[0]);
+        const month = parseInt(parts[1]);
+        const year = parseInt(parts[2]);
+        date = new Date(year, month - 1, day);
+      }
+    } else if (dateStr.includes('-')) {
+      date = new Date(dateStr);
+    }
+    return date && !isNaN(date.getTime()) ? date : null;
+  };
+  
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  
+  const byMonth = {};
+  filteredTasks.forEach(t => {
+    const date = parseDate(t.assigned);
+    if (date) {
+      const year = date.getFullYear();
+      const monthNum = String(date.getMonth() + 1).padStart(2, '0');
+      const m = `${year}-${monthNum}`;
+      const displayMonth = `${monthNames[date.getMonth()]} ${year}`;
+      if (!byMonth[m]) byMonth[m] = {display: displayMonth, tasks: []};
+      byMonth[m].tasks.push(t);
+    }
+  });
+  
+  const html = Object.entries(byMonth).sort((a,b) => b[0].localeCompare(a[0])).map(([month, data]) => `
+    <div class="card" style="margin-bottom:15px">
+      <h3>${data.display} (${data.tasks.length} tasks) <button class="btn btn-p btn-sm" onclick="document.getElementById('fMonth').value='${month}';applyFilters();showPage('tasks')">View All</button></h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-top:10px">
+        ${data.tasks.slice(0,6).map(t => `
+          <div style="padding:10px;background:#f8f9fa;border-radius:5px;cursor:pointer" onclick="showTaskDetail(${t.id})">
+            <div style="font-weight:600;font-size:.85em;margin-bottom:5px">${t.task.substring(0,40)}...</div>
+            <div style="font-size:.75em;color:#7f8c8d">${t.who}</div>
+            <span class="badge ${t.status === 'Completed' ? 'b-done' : t.status === 'In Progress' ? 'b-prog' : 'b-hold'}">${t.status}</span>
+          </div>
+        `).join('')}
+        ${data.tasks.length > 6 ? `<div style="padding:10px;text-align:center;color:#667eea;cursor:pointer" onclick="document.getElementById('fMonth').value='${month}';applyFilters();showPage('tasks')">+${data.tasks.length - 6} more</div>` : ''}
+      </div>
+    </div>
+  `).join('');
+  document.getElementById('timelineView').innerHTML = html || '<div class="empty">No timeline data</div>';
+}
+
+function updateRisks() {
+  const today = new Date().toISOString().split('T')[0];
+  const overdue = filteredTasks.filter(t => t.due && t.due < today && t.status !== 'Completed');
+  const upcoming = filteredTasks.filter(t => {
+    if (!t.due || t.status === 'Completed') return false;
+    const days = Math.ceil((new Date(t.due) - new Date(today)) / (1000*60*60*24));
+    return days >= 0 && days <= 7;
+  });
+  const blocked = filteredTasks.filter(t => t.status === 'On Hold');
+  
+  const html = `
+    <div class="stats" style="margin-bottom:20px">
+      <div class="sc red"><div class="num">${overdue.length}</div><div class="lbl">⚠️ Overdue</div></div>
+      <div class="sc orange"><div class="num">${upcoming.length}</div><div class="lbl">📅 Due This Week</div></div>
+      <div class="sc red"><div class="num">${blocked.length}</div><div class="lbl">🚫 Blocked</div></div>
+    </div>
+    
+    ${overdue.length > 0 ? `
+      <h4 style="color:#e74c3c;margin:20px 0 10px">⚠️ Overdue Tasks</h4>
+      <table>
+        <thead><tr><th>Task</th><th>Responsible</th><th>Due Date</th><th>Days Overdue</th><th>Action</th></tr></thead>
+        <tbody>${overdue.map(t => {
+          const days = Math.ceil((new Date(today) - new Date(t.due)) / (1000*60*60*24));
+          return `<tr class="risk-high clickable" onclick="showTaskDetail(${t.id})">
+            <td>${t.task}</td><td>${t.who}</td><td>${t.due.substring(0,10)}</td><td>${days} days</td>
+            <td><button class="btn btn-d" onclick="event.stopPropagation();showTaskDetail(${t.id})">View</button></td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>
+    ` : ''}
+    
+    ${upcoming.length > 0 ? `
+      <h4 style="color:#f39c12;margin:20px 0 10px">📅 Due This Week</h4>
+      <table>
+        <thead><tr><th>Task</th><th>Responsible</th><th>Due Date</th><th>Days Left</th><th>Action</th></tr></thead>
+        <tbody>${upcoming.map(t => {
+          const days = Math.ceil((new Date(t.due) - new Date(today)) / (1000*60*60*24));
+          return `<tr class="risk-med clickable" onclick="showTaskDetail(${t.id})">
+            <td>${t.task}</td><td>${t.who}</td><td>${t.due.substring(0,10)}</td><td>${days} days</td>
+            <td><button class="btn btn-p" onclick="event.stopPropagation();showTaskDetail(${t.id})">View</button></td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>
+    ` : ''}
+  `;
+  document.getElementById('riskView').innerHTML = html;
+}
+
+function showTaskDetail(id) {
+  const task = allTasks.find(t => t.id === id);
+  if (!task) return;
+  
+  const isNew = newTaskIds.includes(id);
+  const html = `
+    <h2 style="color:#1a1a2e;margin-bottom:20px">${task.task} ${isNew ? '<span style="background:#667eea;color:#fff;padding:2px 10px;border-radius:12px;font-size:.5em;vertical-align:middle">NEW</span>' : ''}</h2>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:15px;margin-bottom:20px">
+      <div><strong>Responsible:</strong> ${task.who}</div>
+      <div><strong>Status:</strong> <span class="badge ${task.status === 'Completed' ? 'b-done' : task.status === 'In Progress' ? 'b-prog' : 'b-hold'}">${task.status}</span></div>
+      <div><strong>Sprint:</strong> ${task.sprint}</div>
+      <div><strong>Assigned:</strong> ${task.assigned.substring(0,10)}</div>
+      <div><strong>Start:</strong> ${task.start.substring(0,10)}</div>
+      <div><strong>End:</strong> ${task.end.substring(0,10)}</div>
+      <div><strong>Due:</strong> ${task.due.substring(0,10)}</div>
+    </div>
+    <div style="margin-bottom:15px"><strong>Description:</strong><div style="background:#f8f9fa;padding:15px;border-radius:5px;margin-top:5px">${task.desc || 'No description'}</div></div>
+    ${task.links && task.links !== 'nan' ? `<div style="margin-bottom:15px"><strong>Links:</strong><div style="margin-top:5px"><a href="${task.links}" target="_blank" style="color:#667eea">${task.links}</a></div></div>` : ''}
+    ${task.comments && task.comments !== 'nan' ? `<div style="margin-bottom:15px"><strong>Comments:</strong><div style="background:#f8f9fa;padding:15px;border-radius:5px;margin-top:5px;max-height:200px;overflow-y:auto">${task.comments}</div></div>` : ''}
+    ${isNew ? `<div style="margin-top:20px;display:flex;gap:10px;border-top:1px solid #ecf0f1;padding-top:15px">
+      <button class="btn btn-p" onclick="editTask(${task.id})">✏️ Edit</button>
+      <button class="btn btn-d" onclick="deleteTask(${task.id})">🗑️ Delete</button>
+    </div>` : ''}
+  `;
+  document.getElementById('taskDetail').innerHTML = html;
+  document.getElementById('taskModal').style.display = 'block';
+}
+
+function closeModal() {
+  document.getElementById('taskModal').style.display = 'none';
+}
+
+function showPage(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(page).classList.add('active');
+  event.target.classList.add('active');
+}
+
+function exportData() {
+  const csv = [
+    ['Task','Description','Responsible','Status','Sprint','Assigned','End Date'],
+    ...filteredTasks.map(t => [t.task, t.desc, t.who, t.status, t.sprint, t.assigned, t.end])
+  ].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+  
+  const blob = new Blob([csv], {type: 'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `tasks_${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+}
+
+function exportNewTasks() {
+  if (newTaskIds.length === 0) {
+    alert('No new tasks to export');
+    return;
+  }
+  const newTasks = allTasks.filter(t => newTaskIds.includes(t.id));
+  const csv = [
+    ['Task assigned Date','Sprint','Task','Detailed description','Responsible','Status','Solution','Start date','End date','Due date','Links','Comments'],
+    ...newTasks.map(t => [t.assigned, t.sprint, t.task, t.desc, t.who, t.status, '', t.start, t.end, t.due, t.links, t.comments])
+  ].map(row => row.map(cell => `"${(cell || '').replace(/"/g, '""')}"`).join(',')).join('\n');
+  
+  const blob = new Blob([csv], {type: 'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `new_tasks_${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+}
+
+function openAddTask() {
+  document.getElementById('addTaskModal').style.display = 'block';
+  document.getElementById('newAssigned').value = new Date().toISOString().split('T')[0];
+  document.getElementById('newStart').value = new Date().toISOString().split('T')[0];
+  document.getElementById('addTaskMsg').innerHTML = '';
+}
+
+function closeAddTask() {
+  document.getElementById('addTaskModal').style.display = 'none';
+}
+
+function formatDateForDisplay(isoDate) {
+  if (!isoDate) return 'nan';
+  const d = new Date(isoDate);
+  return `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`;
+}
+
+function saveNewTask() {
+  const task = document.getElementById('newTask').value.trim();
+  const who = document.getElementById('newWho').value.trim();
+  if (!task || !who) {
+    document.getElementById('addTaskMsg').innerHTML = '<span style="color:#e74c3c">Please fill in Task Name and Responsible</span>';
+    return;
+  }
+  
+  const taskData = {
+    task: task,
+    desc: document.getElementById('newDesc').value.trim() || 'nan',
+    who: who,
+    status: document.getElementById('newStatus').value,
+    sprint: document.getElementById('newSprint').value.trim() || 'nan',
+    assigned: formatDateForDisplay(document.getElementById('newAssigned').value),
+    start: formatDateForDisplay(document.getElementById('newStart').value),
+    end: formatDateForDisplay(document.getElementById('newEnd').value),
+    due: formatDateForDisplay(document.getElementById('newDue').value),
+    links: document.getElementById('newLinks').value.trim() || 'nan',
+    comments: document.getElementById('newComments').value.trim() || 'nan',
+    addedOn: new Date().toISOString()
+  };
+  
+  // Reset form
+  document.getElementById('newTask').value = '';
+  document.getElementById('newWho').value = '';
+  document.getElementById('newDesc').value = '';
+  document.getElementById('newStatus').value = 'In Progress';
+  document.getElementById('newSprint').value = '';
+  document.getElementById('newAssigned').value = '';
+  document.getElementById('newStart').value = '';
+  document.getElementById('newEnd').value = '';
+  document.getElementById('newDue').value = '';
+  document.getElementById('newLinks').value = '';
+  document.getElementById('newComments').value = '';
+  
+  if (firebaseReady) {
+    saveTaskToFirebase(taskData).then(() => {
+      document.getElementById('addTaskMsg').innerHTML = '<span style="color:#2ecc71">✅ Task saved to cloud! All team members can see it now.</span>';
+      setTimeout(() => { closeAddTask(); }, 1500);
+    });
+  } else {
+    taskData.id = allTasks.length;
+    allTasks.push(taskData);
+    newTaskIds.push(taskData.id);
+    saveTasks();
+    updateExportButton();
+    populateFilters();
+    applyFilters();
+    document.getElementById('addTaskMsg').innerHTML = '<span style="color:#2ecc71">✅ Task saved locally! (Set up Firebase for team sync)</span>';
+    setTimeout(() => { closeAddTask(); }, 1500);
+  }
+}
+
+function deleteTask(id) {
+  if (!newTaskIds.includes(id)) {
+    alert('Only newly added tasks can be deleted from the dashboard.');
+    return;
+  }
+  if (!confirm('Are you sure you want to delete this task?')) return;
+  
+  const task = allTasks.find(t => t.id === id);
+  
+  if (firebaseReady && task && task.firebaseKey) {
+    deleteTaskFromFirebase(task);
+  } else {
+    const idx = allTasks.findIndex(t => t.id === id);
+    if (idx > -1) allTasks.splice(idx, 1);
+    newTaskIds = newTaskIds.filter(nid => nid !== id);
+    allTasks.forEach((t, i) => t.id = i);
+    newTaskIds = allTasks.filter(t => t.id >= originalTaskCount).map(t => t.id);
+    saveTasks();
+    updateExportButton();
+    applyFilters();
+  }
+  
+  closeModal();
+}
+
+function editTask(id) {
+  const task = allTasks.find(t => t.id === id);
+  if (!task) return;
+  if (!newTaskIds.includes(id)) {
+    alert('Only newly added tasks can be edited from the dashboard.\nOriginal tasks should be updated in the source data.');
+    return;
+  }
+  
+  closeModal();
+  openAddTask();
+  
+  document.getElementById('newTask').value = task.task;
+  document.getElementById('newWho').value = task.who;
+  document.getElementById('newDesc').value = task.desc !== 'nan' ? task.desc : '';
+  document.getElementById('newStatus').value = task.status;
+  document.getElementById('newSprint').value = task.sprint !== 'nan' ? task.sprint : '';
+  document.getElementById('newLinks').value = task.links !== 'nan' ? task.links : '';
+  document.getElementById('newComments').value = task.comments !== 'nan' ? task.comments : '';
+  
+  // Delete old version first
+  if (firebaseReady && task.firebaseKey) {
+    deleteTaskFromFirebase(task);
+  } else {
+    const idx = allTasks.findIndex(t => t.id === id);
+    if (idx > -1) allTasks.splice(idx, 1);
+    newTaskIds = newTaskIds.filter(nid => nid !== id);
+    allTasks.forEach((t, i) => t.id = i);
+    newTaskIds = allTasks.filter(t => t.id >= originalTaskCount).map(t => t.id);
+  }
+}
+
+window.onclick = (e) => {
+  if (e.target.id === 'taskModal') closeModal();
+  if (e.target.id === 'addTaskModal') closeAddTask();
+};
+</script>
+</body>
+</html>
