@@ -129,6 +129,10 @@ tr.clickable{cursor:pointer}
 <div class="modal-box" style="max-width:700px">
 <span class="modal-x" onclick="closeAddTask()">&times;</span>
 <h2 style="color:#1a1a2e;margin-bottom:20px">➕ Add New Task</h2>
+<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:12px 15px;margin-bottom:15px;font-size:.85em;color:#856404;display:flex;align-items:flex-start;gap:8px">
+<span style="font-size:1.2em">📋</span>
+<div><strong>Reminder:</strong> After adding a new task here, please also update the main Excel sheet (<em>Task tracker.csv</em>) with the same details. Once updated, review the sheet and sync the dashboard accordingly.</div>
+</div>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
 <div class="fg"><label>Task Name *</label><input type="text" id="newTask" placeholder="Task name"></div>
 <div class="fg"><label>Responsible *</label><input type="text" id="newWho" placeholder="Team member name"></div>
@@ -843,8 +847,8 @@ function saveNewTask() {
   
   if (firebaseReady) {
     saveTaskToFirebase(taskData).then(() => {
-      document.getElementById('addTaskMsg').innerHTML = '<span style="color:#2ecc71">✅ Task saved to cloud! All team members can see it now.</span>';
-      setTimeout(() => { closeAddTask(); }, 1500);
+      document.getElementById('addTaskMsg').innerHTML = '<span style="color:#2ecc71">✅ Task saved to cloud! All team members can see it now.</span><br><span style="color:#856404;font-size:.9em">📋 Don\'t forget to update the main Excel sheet with this task.</span>';
+      setTimeout(() => { closeAddTask(); }, 3000);
     });
   } else {
     taskData.id = allTasks.length;
@@ -854,8 +858,8 @@ function saveNewTask() {
     updateExportButton();
     populateFilters();
     applyFilters();
-    document.getElementById('addTaskMsg').innerHTML = '<span style="color:#2ecc71">✅ Task saved locally! (Set up Firebase for team sync)</span>';
-    setTimeout(() => { closeAddTask(); }, 1500);
+    document.getElementById('addTaskMsg').innerHTML = '<span style="color:#2ecc71">✅ Task saved locally! (Set up Firebase for team sync)</span><br><span style="color:#856404;font-size:.9em">📋 Don\'t forget to update the main Excel sheet with this task.</span>';
+    setTimeout(() => { closeAddTask(); }, 3000);
   }
 }
 
