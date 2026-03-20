@@ -809,6 +809,22 @@ function formatDateForDisplay(isoDate) {
   return `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`;
 }
 
+function syncToLocalServer(taskData) {
+  fetch('http://127.0.0.1:5555/add-task', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(taskData)
+  }).then(r => r.json()).then(data => {
+    if (data.success) {
+      console.log('Synced to Excel:', data.message);
+      const msg = document.getElementById('addTaskMsg');
+      if (msg) msg.innerHTML += '<br><span style="color:#27ae60;font-size:.85em">📊 Auto-synced to Excel sheet!</span>';
+    }
+  }).catch(err => {
+    console.log('Local sync server not running, task saved to dashboard only.');
+  });
+}
+
 function saveNewTask() {
   const task = document.getElementById('newTask').value.trim();
   const who = document.getElementById('newWho').value.trim();
@@ -847,7 +863,8 @@ function saveNewTask() {
   
   if (firebaseReady) {
     saveTaskToFirebase(taskData).then(() => {
-      document.getElementById('addTaskMsg').innerHTML = '<span style="color:#2ecc71">✅ Task saved to cloud! All team members can see it now.</span><br><span style="color:#856404;font-size:.9em">📋 Don\'t forget to update the main Excel sheet with this task.</span>';
+      syncToLocalServer(taskData);
+      document.getElementById('addTaskMsg').innerHTML = '<span style="color:#2ecc71">✅ Task saved to cloud! All team members can see it now.</span>';
       setTimeout(() => { closeAddTask(); }, 3000);
     });
   } else {
@@ -858,7 +875,8 @@ function saveNewTask() {
     updateExportButton();
     populateFilters();
     applyFilters();
-    document.getElementById('addTaskMsg').innerHTML = '<span style="color:#2ecc71">✅ Task saved locally! (Set up Firebase for team sync)</span><br><span style="color:#856404;font-size:.9em">📋 Don\'t forget to update the main Excel sheet with this task.</span>';
+    syncToLocalServer(taskData);
+    document.getElementById('addTaskMsg').innerHTML = '<span style="color:#2ecc71">✅ Task saved!</span>';
     setTimeout(() => { closeAddTask(); }, 3000);
   }
 }
